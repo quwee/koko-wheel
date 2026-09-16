@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- объявляем обе схемы: иначе Chrome насильно инвертирует страницу и цифры пропадают -->
+<meta name="color-scheme" content="light dark">
+<title>KOKO — Колесо фортуны</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Playfair+Display:wght@600;700&family=Lora:wght@400;500&display=swap">
+<style>
+:root{
+  color-scheme:light dark;
+  --font:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --font-display:"Playfair Display",Georgia,"Times New Roman",serif;
+  --font-prize:"Lora",var(--font-display);
+
+  --milk:#FBF6EF;
+  --cream:#F3E9DC;
+  --sand:#E6D3B8;
+  --sand-2:#DCC5A4;
+  --gold:#C29A5F;
+  --gold-dk:#A67C42;
+  --ink:#2B2723;
+  --ink-soft:#6E645A;
+  --brand:#1A1714;
+  --line:rgba(43,39,35,.12);
+  --shadow:0 18px 40px rgba(120,95,65,.18);
+
+  --bg:radial-gradient(120% 80% at 50% -10%, #FFFDFA 0%, var(--cream) 55%, #E9DAC6 100%);
+  --card:rgba(255,255,255,.7);
+  --field:#fff;
+  --veil:rgba(251,246,239,.93);
+  --rim:linear-gradient(145deg,#F7E9D4,var(--gold) 55%,#8E6A38);
+  --hub:radial-gradient(circle at 35% 30%,#fff,var(--milk) 60%,var(--cream));
+  --danger-bg:rgba(247,224,210,.55);
+  --danger-line:#E3BFAE;
+  --danger-ink:#8C4426;
+
+  /* цвета колеса — читаются из JS при отрисовке канваса */
+  --w-a:#FBF6EF; --w-ta:#A67C42;
+  --w-b:#E6D3B8; --w-tb:#4A3921;
+  --w-line:rgba(194,154,95,.55);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --milk:#1B1712;
+    --cream:#221D17;
+    --sand:#31281F;
+    --sand-2:#3C3126;
+    --gold:#C9A46C;
+    --gold-dk:#E2C08B;
+    --ink:#F0E7DA;
+    --ink-soft:#A29686;
+    --brand:#F0E7DA;
+    --line:rgba(240,231,218,.14);
+    --shadow:0 18px 40px rgba(0,0,0,.55);
+
+    --bg:radial-gradient(120% 80% at 50% -10%, #2A231B 0%, #1B1712 55%, #110E0B 100%);
+    --card:rgba(255,255,255,.05);
+    --field:rgba(255,255,255,.07);
+    --veil:rgba(27,23,18,.95);
+    --rim:linear-gradient(145deg,#E8D3AE,#B08D55 55%,#5E4526);
+    --hub:radial-gradient(circle at 35% 30%,#3A3026,#211B15 60%,#191410);
+    --danger-bg:rgba(120,50,30,.22);
+    --danger-line:#7A4430;
+    --danger-ink:#E8A88C;
+
+    --w-a:#241E17; --w-ta:#D8B885;
+    --w-b:#33291F; --w-tb:#F0E2CA;
+    --w-line:rgba(201,164,108,.45);
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden}
+body{
+  font-family:var(--font);
+  color:var(--ink);
+  background:var(--bg);
+  background-repeat:no-repeat;
+  min-height:100vh;
+  -webkit-text-size-adjust:100%;
+  -webkit-tap-highlight-color:transparent;
+}
+button,input,select{font:inherit;color:inherit}
+.screen{display:none}
+.screen.active{display:block}
+
+/* ---------- main ---------- */
+.wrap{
+  max-width:520px;margin:0 auto;
+  padding:calc(14px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+}
+.topbar{display:flex;align-items:center;justify-content:center;position:relative;min-height:44px}
+.logo{display:flex;align-items:center;justify-content:center;gap:10px}
+.logo .mark{width:26px;height:26px}
+#koko-mark path{fill:var(--brand)}
+.logo .word{font-family:var(--font);font-size:28px;font-weight:800;letter-spacing:.16em;color:var(--brand)}
+.sub{display:block;color:var(--brand);text-align:center;margin-top:4px;font-size:11px;font-weight:600;letter-spacing:.34em;opacity:.7}
+.staff-btn{
+  position:absolute;right:-6px;top:0;width:44px;height:44px;
+  border:0;background:transparent;opacity:.28;cursor:pointer;padding:9px;
+}
+.staff-btn:active{opacity:.6}
+.staff-btn svg{width:100%;height:100%;display:block}
+
+.stage{position:relative;margin:34px auto 0;width:var(--wsize);height:var(--wsize);--wsize:min(86vw,54vh,400px)}
+.pointer{
+  position:absolute;left:50%;top:-10px;transform:translateX(-50%);
+  width:0;height:0;z-index:3;
+  border-left:13px solid transparent;border-right:13px solid transparent;
+  border-top:24px solid var(--gold-dk);
+  filter:drop-shadow(0 3px 4px rgba(120,95,65,.35));
+}
+.wheel-shell{
+  position:absolute;inset:0;border-radius:50%;
+  padding:8px;background:var(--rim);
+  box-shadow:var(--shadow), 0 0 0 1px rgba(255,255,255,.5) inset;
+}
+.wheel-inner{position:relative;width:100%;height:100%;border-radius:50%;background:var(--milk)}
+/* канвас = одна текстура: поворот уходит на GPU и не перерисовывает содержимое */
+#wheel{
+  width:100%;height:100%;display:block;border-radius:50%;
+  transform:rotate(0deg) translateZ(0);
+  will-change:transform;backface-visibility:hidden;
+}
+.hub{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:26%;height:26%;border-radius:50%;
+  background:var(--hub);
+  box-shadow:0 0 0 3px rgba(194,154,95,.55), 0 6px 14px rgba(120,95,65,.25);
+  display:flex;align-items:center;justify-content:center;z-index:2;
+}
+.hub svg{width:56%;height:56%}
+
+.result{
+  position:absolute;inset:0;z-index:4;display:none;
+  align-items:center;justify-content:center;padding:10%;
+  border-radius:50%;background:var(--veil);overflow:hidden;
+  text-align:center;cursor:pointer;
+  animation:pop .28s ease-out;
+}
+.result.show{display:flex}
+@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:scale(1)}}
+.result .cap{font-size:11px;font-weight:600;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-soft)}
+.result .prize{
+  font-family:var(--font-display);
+  margin-top:8px;font-size:clamp(21px,6.6vw,34px);font-weight:700;line-height:1.15;
+  word-break:break-word;color:var(--gold-dk);
+}
+.result .hint{margin-top:12px;font-size:11px;color:var(--ink-soft);opacity:.8}
+
+.spin{
+  display:block;width:100%;margin:22px 0 0;padding:18px 20px;
+  border:0;border-radius:999px;cursor:pointer;
+  font-size:clamp(17px,4.6vw,20px);font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:#3B2A14;background:linear-gradient(135deg,#F0D9AF,#C29A5F 60%,#E3C592);
+  box-shadow:0 12px 26px rgba(166,124,66,.35), 0 0 0 1px rgba(255,255,255,.45) inset;
+  transition:transform .12s ease, box-shadow .12s ease, opacity .2s;
+}
+.spin:active{transform:translateY(2px);box-shadow:0 6px 14px rgba(166,124,66,.3)}
+.spin:disabled{opacity:.5;cursor:default;transform:none}
+
+.card{
+  margin-top:18px;padding:16px;border-radius:20px;
+  background:var(--card);border:1px solid var(--line);
+  box-shadow:0 8px 22px rgba(120,95,65,.1);
+}
+.card h2{margin:0 0 12px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);font-weight:700}
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px dashed var(--line);font-size:15px}
+.plist li:last-child{border-bottom:0}
+.plist .n{
+  flex:0 0 26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--sand);color:var(--ink);
+  font-family:var(--font-prize);font-weight:400;font-size:14px;
+}
+.plist .t{
+  flex:1;min-width:0;word-break:break-word;
+  font-family:var(--font-prize);font-size:18px;font-weight:400;line-height:1.35;
+}
+
+
+/* ---------- staff ---------- */
+.shead{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-bottom:14px;border-bottom:1px solid var(--line);
+}
+.shead h1{margin:0;font-family:var(--font-display);font-size:20px;font-weight:700}
+.back{
+  border:1px solid var(--line);background:var(--field);
+  border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;
+}
+.row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.row label{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:15px}
+input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:8px}
+.num{
+  border:1px solid var(--line);background:var(--field);border-radius:14px;
+  padding:12px 0;font-weight:700;cursor:pointer;
+}
+.num.on{background:linear-gradient(135deg,#EFD8AE,var(--gold));color:#3B2A14;border-color:transparent}
+.frow{display:flex;align-items:center;gap:10px;padding:5px 0}
+.frow .n{flex:0 0 26px;text-align:center;font-weight:700;color:var(--ink-soft)}
+.frow input[type=text],.frow input[type=number]{
+  flex:1;min-width:0;padding:10px 12px;border-radius:12px;
+  border:1px solid var(--line);background:var(--field);color:var(--ink);
+}
+.frow input[type=number]{flex:0 0 92px}
+.frow .pct{flex:0 0 52px;text-align:right;font-size:13px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.muted{font-size:13px;color:var(--ink-soft);margin:0 0 10px;line-height:1.45}
+.total{font-size:15px;font-weight:700;margin:0 0 10px}
+.hist{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto}
+.hist li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:15px}
+.hist .n{flex:0 0 32px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.hist .t{flex:1;min-width:0;word-break:break-word}
+.del{
+  flex:0 0 auto;border:1px solid var(--line);background:var(--field);border-radius:10px;
+  width:34px;height:34px;cursor:pointer;color:var(--danger-ink);font-size:16px;line-height:1;
+}
+.danger{margin-top:22px;padding:16px;border-radius:20px;border:1px solid var(--danger-line);background:var(--danger-bg)}
+.danger h2{color:var(--danger-ink)}
+.reset{
+  width:100%;padding:16px;border:0;border-radius:14px;cursor:pointer;
+  background:#B4573A;color:#fff;font-weight:700;font-size:15px;
+}
+.empty{font-size:14px;color:var(--ink-soft);padding:6px 0}
+
+@media (orientation:landscape) and (max-height:560px){
+  .wrap{max-width:900px}
+  .main-cols{display:flex;gap:22px;align-items:flex-start}
+  .main-cols>.col-a{flex:0 0 auto;width:min(46vw,340px)}
+  .main-cols>.col-b{flex:1;min-width:0}
+  .stage{--wsize:min(44vw,72vh,340px);margin-top:8px}
+  .card{margin-top:0}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- знак KOKO: две чаши-лепестка, сходящиеся в точке (40.5,82), и четырёхлучевая искра над ними -->
+  <symbol id="koko-mark" viewBox="-1.5 0 84 84">
+    <path d="M1 27 C20 30 45 45 40.5 82 C20 80 -5 60 1 27 Z"/>
+    <path d="M80 27 C61 30 36 45 40.5 82 C61 80 86 60 80 27 Z"/>
+    <path d="M40.5 2 Q36.4 15.5 24 20 Q36.4 24.5 40.5 38 Q44.6 24.5 57 20 Q44.6 15.5 40.5 2 Z"/>
+  </symbol>
+</svg>
+
+<!-- ============ MAIN ============ -->
+<section id="screen-main" class="screen active">
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <div class="logo">
+          <svg class="mark" aria-hidden="true"><use href="#koko-mark"/></svg>
+          <span class="word">KOKO</span>
+        </div>
+        <span class="sub">KOREAN COSMETICS</span>
+      </div>
+      <button class="staff-btn" id="staffBtn" aria-label="KOKO">
+        <svg aria-hidden="true"><use href="#koko-mark"/></svg>
+      </button>
+    </div>
+
+    <div class="main-cols">
+      <div class="col-a">
+        <div class="stage">
+          <div class="pointer"></div>
+          <div class="wheel-shell">
+            <div class="wheel-inner">
+              <canvas id="wheel" aria-hidden="true"></canvas>
+            </div>
+          </div>
+          <div class="hub"><svg aria-hidden="true"><use href="#koko-mark"/></svg></div>
+          <div class="result" id="result">
+            <div>
+              <div class="cap">Вы выиграли</div>
+              <div class="prize" id="resultPrize"></div>
+              <div class="hint">нажмите, чтобы закрыть</div>
+            </div>
+          </div>
+        </div>
+        <button class="spin" id="spinBtn">Крутить колесо</button>
+      </div>
+
+      <div class="col-b">
+        <div class="card">
+          <h2>Призы</h2>
+          <ul class="plist" id="prizeList"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STAFF ============ -->
+<section id="screen-staff" class="screen">
+  <div class="wrap">
+    <div class="shead">
+      <h1>Настройки сотрудника</h1>
+      <button class="back" id="backBtn">Закрыть</button>
+    </div>
+
+    <div class="card">
+      <h2>Режим определения результата</h2>
+      <div class="row"><label><input type="radio" name="mode" value="random"> Рандом</label></div>
+      <div class="row"><label><input type="radio" name="mode" value="guaranteed"> Гарантированный результат</label></div>
+    </div>
+
+    <div class="card">
+      <h2>Вероятности (веса)</h2>
+      <p class="muted">Значения — относительные веса, сумма может быть любой. Приложение само пересчитает проценты.</p>
+      <div id="weightRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>Гарантированный результат</h2>
+      <p class="muted">Выбранный номер сохраняется до тех пор, пока вы его не измените.</p>
+      <div class="grid" id="guarGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Названия призов</h2>
+      <div id="prizeRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>История вращений</h2>
+      <p class="total" id="totalLine">Всего прокруток: 0</p>
+      <ul class="hist" id="histList"></ul>
+    </div>
+
+    <div class="card danger">
+      <h2>Сброс</h2>
+      <p class="muted">Удалит историю, вернёт стандартные призы, вероятности и режим.</p>
+      <button class="reset" id="resetBtn">Сбросить приложение</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+var KEY = "koko_wheel_v1";
+var N = 10;
+var SPIN_MS = 5200;
+var TURNS = 6;
+
+var DEFAULT_PRIZES = ["Скидка 5%","Скидка 10%","Патчи","Тканевая маска","Мини-крем",
+                      "Пенка для умывания","Тонер","Сыворотка","Набор миниатюр","Большой подарок"];
+var DEFAULT_WEIGHTS = [22,18,15,12,10,8,6,4,3,2];
+
+function defaults(){
+  return {
+    prizes: DEFAULT_PRIZES.slice(),
+    weights: DEFAULT_WEIGHTS.slice(),
+    mode: "random",
+    guaranteed: 1,
+    history: []      // [{prize:"..."}] — снимок текста на момент выигрыша
+  };
+}
+
+/* ---------- storage ---------- */
+var storageOk = (function(){
+  try { localStorage.setItem(KEY+"_t","1"); localStorage.removeItem(KEY+"_t"); return true; }
+  catch(e){ return false; }
+})();
+
+function load(){
+  var s = defaults();
+  if(!storageOk) return s;
+  var raw;
+  try { raw = localStorage.getItem(KEY); } catch(e){ return s; }
+  if(!raw) return s;
+  var p;
+  try { p = JSON.parse(raw); } catch(e){ return s; }
+  if(!p || typeof p !== "object") return s;
+
+  if(Array.isArray(p.prizes)) for(var i=0;i<N;i++)
+    if(typeof p.prizes[i] === "string") s.prizes[i] = p.prizes[i];
+  if(Array.isArray(p.weights)) for(var j=0;j<N;j++){
+    var w = Number(p.weights[j]);
+    if(isFinite(w) && w >= 0) s.weights[j] = w;
+  }
+  if(p.mode === "guaranteed" || p.mode === "random") s.mode = p.mode;
+  var g = Math.round(Number(p.guaranteed));
+  if(isFinite(g) && g >= 1 && g <= N) s.guaranteed = g;
+  if(Array.isArray(p.history))
+    s.history = p.history
+      .filter(function(h){ return h && typeof h.prize === "string"; })
+      .map(function(h){ return {prize: h.prize}; });
+  return s;
+}
+
+function save(){
+  if(!storageOk) return;
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch(e){ /* квота/приватный режим — не роняем приложение */ }
+}
+
+var state = load();
+
+/* ---------- helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function prizeText(i){
+  var t = (state.prizes[i] || "").trim();
+  return t || ("Приз " + (i+1));
+}
+function pickWeighted(){
+  var total = 0, i;
+  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
+  if(!(total > 0)) return Math.floor(Math.random()*N);
+  var r = Math.random()*total;
+  for(i=0;i<N;i++){
+    r -= Math.max(0, state.weights[i]);
+    if(r < 0) return i;
+  }
+  return N-1;
+}
+
+/* ---------- wheel drawing (один раз в канвас, дальше только CSS-поворот) ---------- */
+var RAD = Math.PI/180;
+function cssVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function buildWheel(){
+  var c = $("wheel");
+  var css = c.clientWidth;
+  if(!css) return;                                  // экран скрыт — перерисуем при показе
+  var px = Math.round(css * Math.min(window.devicePixelRatio || 1, 3));
+  if(c.width !== px){ c.width = px; c.height = px; }
+  var g = c.getContext("2d"), r = px/2, i;
+  var fill = [cssVar("--w-a"), cssVar("--w-b")];
+  var text = [cssVar("--w-ta"), cssVar("--w-tb")];
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,px,px);
+  g.translate(r,r);
+
+  for(i=0;i<N;i++){
+    g.beginPath();
+    g.moveTo(0,0);
+    g.arc(0,0, r - r*0.004, (i*36-90)*RAD, ((i+1)*36-90)*RAD);
+    g.closePath();
+    g.fillStyle = fill[i%2];
+    g.fill();
+    g.strokeStyle = cssVar("--w-line");
+    g.lineWidth = r*0.008;
+    g.stroke();
+  }
+
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = "700 " + (r*0.21).toFixed(1) + "px " + cssVar("--font-display");
+  for(i=0;i<N;i++){
+    g.save();
+    g.rotate((i*36+18)*RAD);
+    g.fillStyle = text[i%2];
+    g.fillText(String(i+1), 0, -r*0.72);
+    g.restore();
+  }
+  g.setTransform(1,0,0,1,0,0);
+}
+window.addEventListener("resize", buildWheel);
+if(window.matchMedia) matchMedia("(prefers-color-scheme:dark)").addEventListener("change", buildWheel);
+if(document.fonts) document.fonts.ready.then(buildWheel);   // цифры шрифтом бренда, а не подменой
+
+/* ---------- spin ---------- */
+var spinning = false;
+var rot = 0;
+
+function setRot(deg){
+  $("wheel").style.transform = "rotate(" + deg + "deg) translateZ(0)";
+}
+
+function spin(){
+  if(spinning) return;
+  spinning = true;
+  $("spinBtn").disabled = true;
+  $("staffBtn").disabled = true;
+  hideResult();
+
+  // 1. результат определяется ДО анимации — оба режима идут одним путём
+  var idx = (state.mode === "guaranteed") ? (state.guaranteed - 1) : pickWeighted();
+  var snapshot = prizeText(idx);
+
+  // 2. одна анимация, одинаковая физика для обоих режимов
+  var center = idx*36 + 18 + (Math.random()*24 - 12); // лёгкий разброс внутри сектора
+  var target = rot + 360*TURNS;
+  target += ((-center - target) % 360 + 360) % 360;
+
+  var wheel = $("wheel");
+  wheel.style.transition = "transform " + SPIN_MS + "ms cubic-bezier(.12,.72,.08,1)";
+  // reflow, чтобы браузер точно увидел стартовое значение
+  void wheel.offsetWidth;
+  setRot(target);
+
+  var done = false;
+  function settle(){
+    if(done) return;
+    done = true;
+    wheel.removeEventListener("transitionend", settle);
+    clearTimeout(timer);
+
+    // держим угол в разумных пределах, визуально ничего не меняется
+    wheel.style.transition = "none";
+    rot = ((target % 360) + 360) % 360;
+    setRot(rot);
+    void wheel.offsetWidth;
+    wheel.style.transition = "";
+
+    // 3. фиксируем историю и показываем результат
+    state.history.push({prize: snapshot});
+    save();
+    showResult(snapshot);
+    spinning = false;
+    $("spinBtn").disabled = false;
+    $("staffBtn").disabled = false;
+  }
+  var timer = setTimeout(settle, SPIN_MS + 120);
+  wheel.addEventListener("transitionend", settle);
+}
+
+function showResult(text){
+  $("resultPrize").textContent = text;
+  $("result").classList.add("show");
+}
+function hideResult(){ $("result").classList.remove("show"); }
+
+/* ---------- render: main ---------- */
+function renderPrizeList(){
+  var ul = $("prizeList");
+  ul.innerHTML = "";
+  for(var i=0;i<N;i++){
+    var li = document.createElement("li");
+    var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
+    var t = document.createElement("span"); t.className = "t"; t.textContent = prizeText(i);
+    li.appendChild(n); li.appendChild(t);
+    ul.appendChild(li);
+  }
+}
+
+/* ---------- render: staff ---------- */
+function renderMode(){
+  var rs = document.getElementsByName("mode");
+  for(var i=0;i<rs.length;i++) rs[i].checked = (rs[i].value === state.mode);
+}
+
+function renderWeights(){
+  var box = $("weightRows");
+  box.innerHTML = "";
+  var total = 0, i;
+  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
+  for(i=0;i<N;i++){
+    (function(i){
+      var row = document.createElement("div"); row.className = "frow";
+      var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
+      var inp = document.createElement("input");
+      inp.type = "number"; inp.min = "0"; inp.step = "1"; inp.inputMode = "decimal";
+      inp.value = state.weights[i];
+      var pct = document.createElement("span"); pct.className = "pct";
+      pct.textContent = total > 0 ? (Math.max(0,state.weights[i])/total*100).toFixed(1)+"%" : "—";
+      inp.addEventListener("input", function(){
+        var v = Number(inp.value);
+        state.weights[i] = (isFinite(v) && v >= 0) ? v : 0;
+        save();
+        updatePercents();
+      });
+      inp.addEventListener("blur", function(){ inp.value = state.weights[i]; });
+      row.appendChild(n); row.appendChild(inp); row.appendChild(pct);
+      box.appendChild(row);
+    })(i);
+  }
+}
+function updatePercents(){
+  var cells = $("weightRows").getElementsByClassName("pct");
+  var total = 0, i;
+  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
+  for(i=0;i<cells.length;i++)
+    cells[i].textContent = total > 0 ? (Math.max(0,state.weights[i])/total*100).toFixed(1)+"%" : "—";
+}
+
+function renderGuar(){
+  var g = $("guarGrid");
+  g.innerHTML = "";
+  for(var i=1;i<=N;i++){
+    (function(i){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "num" + (state.guaranteed === i ? " on" : "");
+      b.textContent = i;
+      b.addEventListener("click", function(){
+        state.guaranteed = i;
+        save();
+        renderGuar();
+      });
+      g.appendChild(b);
+    })(i);
+  }
+}
+
+function renderPrizeInputs(){
+  var box = $("prizeRows");
+  box.innerHTML = "";
+  for(var i=0;i<N;i++){
+    (function(i){
+      var row = document.createElement("div"); row.className = "frow";
+      var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
+      var inp = document.createElement("input");
+      inp.type = "text"; inp.maxLength = 60; inp.value = state.prizes[i];
+      inp.placeholder = "Приз " + (i+1);
+      inp.addEventListener("input", function(){
+        state.prizes[i] = inp.value;
+        save();
+        renderPrizeList();
+      });
+      row.appendChild(n); row.appendChild(inp);
+      box.appendChild(row);
+    })(i);
+  }
+}
+
+function renderStaffHistory(){
+  $("totalLine").textContent = "Всего прокруток: " + state.history.length;
+  var ul = $("histList");
+  ul.innerHTML = "";
+  if(state.history.length === 0){
+    var e = document.createElement("li");
+    e.className = "empty";
+    e.textContent = "Пока нет вращений.";
+    ul.appendChild(e);
+    return;
+  }
+  for(var i=0;i<state.history.length;i++){
+    (function(i){
+      var li = document.createElement("li");
+      var n = document.createElement("span"); n.className = "n"; n.textContent = (i+1) + ".";
+      var t = document.createElement("span"); t.className = "t"; t.textContent = state.history[i].prize;
+      var d = document.createElement("button");
+      d.type = "button"; d.className = "del"; d.textContent = "×";
+      d.setAttribute("aria-label", "Удалить запись " + (i+1));
+      d.addEventListener("click", function(){
+        state.history.splice(i,1);   // нумерация = индекс+1, дыр не бывает
+        save();
+        renderStaffHistory();
+      });
+      li.appendChild(n); li.appendChild(t); li.appendChild(d);
+      ul.appendChild(li);
+    })(i);
+  }
+}
+
+function renderAll(){
+  renderPrizeList();
+  renderMode();
+  renderWeights();
+  renderGuar();
+  renderPrizeInputs();
+  renderStaffHistory();
+}
+
+/* ---------- screens ---------- */
+function showScreen(id){
+  $("screen-main").classList.toggle("active", id === "main");
+  $("screen-staff").classList.toggle("active", id === "staff");
+  window.scrollTo(0,0);
+  if(id === "main") buildWheel();   // размер мог измениться, пока колесо было скрыто
+}
+
+/* ---------- events ---------- */
+$("spinBtn").addEventListener("click", spin);
+$("result").addEventListener("click", hideResult);
+
+$("staffBtn").addEventListener("click", function(){
+  if(spinning) return;
+  if(confirm("Открыть настройки сотрудника?")){
+    renderAll();
+    showScreen("staff");
+  }
+});
+$("backBtn").addEventListener("click", function(){ showScreen("main"); });
+
+(function(){
+  var rs = document.getElementsByName("mode");
+  for(var i=0;i<rs.length;i++){
+    rs[i].addEventListener("change", function(){
+      if(this.checked){ state.mode = this.value; save(); }
+    });
+  }
+})();
+
+$("resetBtn").addEventListener("click", function(){
+  if(!confirm("Вы уверены, что хотите полностью сбросить приложение? Все результаты, история и настройки будут удалены.")) return;
+  if(!confirm("Подтвердите сброс ещё раз. Действие необратимо.")) return;
+  state = defaults();
+  save();
+  renderAll();
+  hideResult();
+});
+
+/* ---------- init ---------- */
+buildWheel();
+renderAll();
+})();
+</script>
+</body>
+</html>
