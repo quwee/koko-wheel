@@ -516,6 +516,9 @@ function spin(){
   var idx = (state.mode === "guaranteed") ? (state.guaranteed - 1) : pickWeighted();
   var snapshot = prizeText(idx);
 
+  // гарантированный режим одноразовый: сразу возвращаемся к рандому
+  if(state.mode === "guaranteed"){ state.mode = "random"; renderMode(); save(); }
+
   // 2. одна анимация, одинаковая физика для обоих режимов
   var center = idx*36 + 18 + (Math.random()*24 - 12); // лёгкий разброс внутри сектора
   var target = rot + 360*TURNS;
