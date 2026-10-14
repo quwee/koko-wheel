@@ -105,7 +105,79 @@ button,input,select{font:inherit;color:inherit}
 .staff-btn:active{opacity:.6}
 .staff-btn svg{width:100%;height:100%;display:block}
 
-.stage{position:relative;margin:34px auto 0;width:var(--wsize);height:var(--wsize);--wsize:min(86vw,54vh,400px)}
+/* переключатель игр / вкладок настроек */
+.tabs{
+  display:flex;gap:4px;margin:18px auto 0;padding:4px;max-width:320px;
+  border-radius:999px;background:var(--card);border:1px solid var(--line);
+  box-shadow:0 6px 16px rgba(120,95,65,.1);
+}
+.tabs button{
+  flex:1;border:0;background:transparent;border-radius:999px;padding:10px 12px;cursor:pointer;
+  font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);
+  transition:background .25s, color .25s, box-shadow .25s;
+}
+.tabs button.on{
+  color:#3B2A14;background:linear-gradient(135deg,#F0D9AF,#C29A5F 60%,#E3C592);
+  box-shadow:0 6px 14px rgba(166,124,66,.3), 0 0 0 1px rgba(255,255,255,.45) inset;
+}
+.tabs button:disabled{cursor:default}
+.game,.pane{display:none}
+.game.active,.pane.active{display:block;animation:fade .3s ease-out}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.stage,.board{position:relative;margin:34px auto 0;width:var(--wsize);height:var(--wsize);--wsize:min(86vw,54vh,400px)}
+
+/* ---------- 9 ячеек ---------- */
+.board-shell{
+  width:100%;height:100%;padding:8px;border-radius:30px;background:var(--rim);
+  box-shadow:var(--shadow), 0 0 0 1px rgba(255,255,255,.5) inset;
+}
+.cells{
+  display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+  gap:calc(var(--wsize)*.03);padding:calc(var(--wsize)*.03);
+  width:100%;height:100%;border-radius:22px;background:var(--milk);
+}
+.cell{
+  position:relative;border:0;padding:0;background:none;cursor:pointer;
+  perspective:700px;animation:deal .45s cubic-bezier(.2,.8,.2,1) backwards;
+  transition:opacity .4s, transform .4s;
+}
+@keyframes deal{from{opacity:0;transform:translateY(12px) scale(.85)}}
+.cell .in{
+  position:relative;display:block;width:100%;height:100%;
+  transform-style:preserve-3d;-webkit-transform-style:preserve-3d;
+  transition:transform .85s cubic-bezier(.2,.8,.2,1);
+}
+.cells:not(.done) .cell:active .in{transform:scale(.94)}
+.cell.open{z-index:2}
+.cell.open .in{transform:rotateY(180deg) scale(1.06)}
+.cells.done .cell:not(.open){opacity:.35;transform:scale(.92);cursor:default}
+.face{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  border-radius:16px;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+}
+.front{
+  background:linear-gradient(145deg,var(--sand),var(--sand-2));
+  box-shadow:0 0 0 1px var(--w-line) inset, 0 6px 12px rgba(120,95,65,.16);
+}
+.front .q{
+  font-family:var(--font-display);font-weight:700;font-size:calc(var(--wsize)*.13);
+  color:var(--gold-dk);animation:bob 2.4s ease-in-out infinite;
+}
+.cell:nth-child(3n+2) .q{animation-delay:-.8s}
+.cell:nth-child(3n) .q{animation-delay:-1.6s}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.reveal{
+  transform:rotateY(180deg);padding:6px;text-align:center;
+  background:linear-gradient(135deg,#F0D9AF,#C29A5F 60%,#E3C592);color:#3B2A14;
+  font-size:clamp(11px,3.3vw,15px);font-weight:700;line-height:1.15;word-break:break-word;
+  box-shadow:0 0 0 2px rgba(255,255,255,.55) inset, 0 12px 26px rgba(166,124,66,.5);
+}
+.result.sq{border-radius:30px}
+.pick-hint{
+  margin:22px 0 0;padding:18px 0;text-align:center;
+  font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);
+}
 .pointer{
   position:absolute;left:50%;top:-10px;transform:translateX(-50%);
   width:0;height:0;z-index:3;
@@ -187,7 +259,7 @@ button,input,select{font:inherit;color:inherit}
   display:flex;align-items:center;justify-content:space-between;gap:12px;
   padding-bottom:14px;border-bottom:1px solid var(--line);
 }
-.shead h1{margin:0;font-family:var(--font-display);font-size:20px;font-weight:700}
+.shead h1{margin:0;font-family:var(--font);font-size:20px;font-weight:700;letter-spacing:.02em}
 .back{
   border:1px solid var(--line);background:var(--field);
   border-radius:999px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;
@@ -227,12 +299,13 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
 }
 .empty{font-size:14px;color:var(--ink-soft);padding:6px 0}
 
+
 @media (orientation:landscape) and (max-height:560px){
   .wrap{max-width:900px}
   .main-cols{display:flex;gap:22px;align-items:flex-start}
   .main-cols>.col-a{flex:0 0 auto;width:min(46vw,340px)}
   .main-cols>.col-b{flex:1;min-width:0}
-  .stage{--wsize:min(44vw,72vh,340px);margin-top:8px}
+  .stage,.board{--wsize:min(44vw,72vh,340px);margin-top:8px}
   .card{margin-top:0}
 }
 </style>
@@ -264,8 +337,28 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
       </button>
     </div>
 
+    <div class="tabs" id="gameTabs">
+      <button type="button" data-g="wheel">Колесо</button>
+      <button type="button" data-g="slots">Ячейки</button>
+    </div>
+
     <div class="main-cols">
       <div class="col-a">
+        <div class="game" id="game-slots">
+          <div class="board">
+            <div class="board-shell"><div class="cells" id="cells"></div></div>
+            <div class="result sq" id="slotResult">
+              <div>
+                <div class="cap">Вы выиграли</div>
+                <div class="prize" id="slotPrize"></div>
+                <div class="hint">нажмите, чтобы сыграть снова</div>
+              </div>
+            </div>
+          </div>
+          <p class="pick-hint">Выберите одну ячейку</p>
+        </div>
+
+        <div class="game" id="game-wheel">
         <div class="stage">
           <div class="pointer"></div>
           <div class="wheel-shell">
@@ -283,9 +376,10 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
           </div>
         </div>
         <button class="spin" id="spinBtn">Крутить колесо</button>
+        </div>
       </div>
 
-      <div class="col-b">
+      <div class="col-b" id="prizeCol">
         <div class="card">
           <h2>Призы</h2>
           <ul class="plist" id="prizeList"></ul>
@@ -303,6 +397,20 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
       <button class="back" id="backBtn">Закрыть</button>
     </div>
 
+    <div class="tabs" id="staffTabs">
+      <button type="button" data-s="wheel">Колесо</button>
+      <button type="button" data-s="slots">Ячейки</button>
+    </div>
+
+    <div class="pane" id="staff-slots">
+      <div class="card">
+        <h2>Приз в каждой ячейке</h2>
+        <p class="muted">Ячейка всегда даёт приз, указанный здесь.</p>
+        <div id="cellRows"></div>
+      </div>
+    </div>
+
+    <div class="pane" id="staff-wheel">
     <div class="card">
       <h2>Режим определения результата</h2>
       <div class="row"><label><input type="radio" name="mode" value="random"> Рандом</label></div>
@@ -325,17 +433,19 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
       <h2>Названия призов</h2>
       <div id="prizeRows"></div>
     </div>
+    </div>
 
     <div class="card">
-      <h2>История вращений</h2>
-      <p class="total" id="totalLine">Всего прокруток: 0</p>
+      <h2 id="histTitle">История</h2>
+      <p class="total" id="totalLine"></p>
       <ul class="hist" id="histList"></ul>
     </div>
 
     <div class="card danger">
       <h2>Сброс</h2>
-      <p class="muted">Удалит историю, вернёт стандартные призы, вероятности и режим.</p>
-      <button class="reset" id="resetBtn">Сбросить приложение</button>
+      <p class="muted" id="resetNote"></p>
+      <button class="reset" id="resetBtn"></button>
+      <button class="reset" id="clearHistBtn" style="margin-top:10px"></button>
     </div>
   </div>
 </section>
@@ -355,12 +465,16 @@ window.onerror = function(msg, src, line){
 
 var KEY = "koko_wheel_v1";
 var N = 10;
+var CELLS = 9;
 var SPIN_MS = 5200;
 var TURNS = 6;
 
 var DEFAULT_PRIZES = ["Скидка 10%","Скидка 20%","Скидка 30%","Скидка 40%","Скидка 50%",
                       "Скидка 60%","Скидка 70%","Скидка 80%","Бесплатная Диагностика","Секретный бокс"];
 var DEFAULT_WEIGHTS = [15,18,10,10,0,0,0,0,80,34];
+var DEFAULT_CELLS = ["Скидка 10%","Скидка 20%","Бесплатная Диагностика",
+                     "Скидка 30%","Секретный бокс","Скидка 10%",
+                     "Бесплатная Диагностика","Скидка 20%","Скидка 40%"];
 
 function defaults(){
   return {
@@ -368,7 +482,9 @@ function defaults(){
     weights: DEFAULT_WEIGHTS.slice(),
     mode: "random",
     guaranteed: 1,
-    history: []      // [{prize:"..."}] — снимок текста на момент выигрыша
+    game: "wheel",
+    cells: DEFAULT_CELLS.slice(),   // приз каждой ячейки 3×3
+    history: []      // [{prize:"...", game:"wheel"|"slots"}] — снимок текста на момент выигрыша
   };
 }
 
@@ -397,10 +513,13 @@ function load(){
   if(p.mode === "guaranteed" || p.mode === "random") s.mode = p.mode;
   var g = Math.round(Number(p.guaranteed));
   if(isFinite(g) && g >= 1 && g <= N) s.guaranteed = g;
+  if(p.game === "wheel" || p.game === "slots") s.game = p.game;
+  if(Array.isArray(p.cells)) for(var k=0;k<CELLS;k++)
+    if(typeof p.cells[k] === "string") s.cells[k] = p.cells[k];
   if(Array.isArray(p.history))
     s.history = p.history
       .filter(function(h){ return h && typeof h.prize === "string"; })
-      .map(function(h){ return {prize: h.prize}; });
+      .map(function(h){ return {prize: h.prize, game: h.game === "slots" ? "slots" : "wheel"}; });
   return s;
 }
 
@@ -428,6 +547,14 @@ function pickWeighted(){
     if(r < 0) return i;
   }
   return N-1;
+}
+function cellText(k){
+  return (state.cells[k] || "").trim() || ("Приз " + (k+1));
+}
+function lockUi(on){
+  $("staffBtn").disabled = on;
+  var b = $("gameTabs").getElementsByTagName("button");
+  for(var i=0;i<b.length;i++) b[i].disabled = on;
 }
 
 /* ---------- wheel drawing (один раз в канвас, дальше только CSS-поворот) ---------- */
@@ -509,7 +636,7 @@ function spin(){
   if(spinning) return;
   spinning = true;
   $("spinBtn").disabled = true;
-  $("staffBtn").disabled = true;
+  lockUi(true);
   hideResult();
 
   // 1. результат определяется ДО анимации — оба режима идут одним путём
@@ -545,12 +672,12 @@ function spin(){
     wheel.style.transition = "";
 
     // 3. фиксируем историю и показываем результат
-    state.history.push({prize: snapshot});
+    state.history.push({prize: snapshot, game: "wheel"});
     save();
     showResult(snapshot);
     spinning = false;
     $("spinBtn").disabled = false;
-    $("staffBtn").disabled = false;
+    lockUi(false);
   }
   var timer = setTimeout(settle, SPIN_MS + 120);
   wheel.addEventListener("transitionend", settle);
@@ -562,7 +689,66 @@ function showResult(text){
 }
 function hideResult(){ $("result").classList.remove("show"); }
 
+/* ---------- 9 ячеек ---------- */
+var revealing = false;
+
+function renderCells(){
+  var box = $("cells");
+  box.innerHTML = "";
+  box.classList.remove("done");
+  for(var k=0;k<CELLS;k++){
+    (function(k){
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "cell";
+      b.style.animationDelay = (k*45) + "ms";
+      b.setAttribute("aria-label", "Ячейка " + (k+1));
+      b.innerHTML = '<span class="in"><span class="face front"><span class="q">?</span></span>'
+                  + '<span class="face reveal"></span></span>';
+      b.addEventListener("click", function(){ openCell(k, b); });
+      box.appendChild(b);
+    })(k);
+  }
+}
+
+function openCell(k, btn){
+  if(revealing) return;
+  revealing = true;
+  lockUi(true);
+
+  var snapshot = cellText(k);
+  state.history.push({prize: snapshot, game: "slots"});
+  save();
+
+  btn.querySelector(".reveal").textContent = snapshot;
+  btn.classList.add("open");
+  $("cells").classList.add("done");
+
+  setTimeout(function(){
+    $("slotPrize").textContent = snapshot;
+    $("slotResult").classList.add("show");
+    lockUi(false);
+  }, 1400);
+}
+
+function resetCells(){
+  $("slotResult").classList.remove("show");
+  renderCells();
+  revealing = false;
+}
+
 /* ---------- render: main ---------- */
+function setGame(g){
+  state.game = g;
+  save();
+  $("game-wheel").classList.toggle("active", g === "wheel");
+  $("game-slots").classList.toggle("active", g === "slots");
+  var b = $("gameTabs").getElementsByTagName("button");
+  for(var i=0;i<b.length;i++) b[i].classList.toggle("on", b[i].getAttribute("data-g") === g);
+  $("prizeCol").style.display = g === "wheel" ? "" : "none";   // в ячейках призы не раскрываем
+  if(g === "wheel") buildWheel();
+}
+
 function renderPrizeList(){
   var ul = $("prizeList");
   ul.innerHTML = "";
@@ -655,33 +841,74 @@ function renderPrizeInputs(){
   }
 }
 
+/* ---------- render: staff (ячейки) ---------- */
+function renderCellInputs(){
+  var box = $("cellRows");
+  box.innerHTML = "";
+  for(var k=0;k<CELLS;k++){
+    (function(k){
+      var row = document.createElement("div"); row.className = "frow";
+      var n = document.createElement("span"); n.className = "n"; n.textContent = k+1;
+      var inp = document.createElement("input");
+      inp.type = "text"; inp.maxLength = 60; inp.value = state.cells[k];
+      inp.placeholder = "Приз " + (k+1);
+      inp.setAttribute("aria-label", "Приз ячейки " + (k+1));
+      inp.addEventListener("input", function(){
+        state.cells[k] = inp.value;
+        save();
+      });
+      row.appendChild(n); row.appendChild(inp);
+      box.appendChild(row);
+    })(k);
+  }
+}
+
+var staffTab = "wheel";
+function setStaffTab(t){
+  staffTab = t;
+  $("resetNote").textContent = t === "wheel"
+    ? "Настройки: стандартные призы, вероятности и режим колеса. История: история прокрутки колеса."
+    : "Настройки: стандартные призы ячеек. История: история выбора ячеек.";
+  $("resetBtn").textContent = "Сбросить настройки";
+  $("clearHistBtn").textContent = "Сбросить историю";
+  renderStaffHistory();
+  $("staff-wheel").classList.toggle("active", t === "wheel");
+  $("staff-slots").classList.toggle("active", t === "slots");
+  var b = $("staffTabs").getElementsByTagName("button");
+  for(var i=0;i<b.length;i++) b[i].classList.toggle("on", b[i].getAttribute("data-s") === t);
+}
+
+// история одна в хранилище, но показывается и чистится отдельно для каждой игры
 function renderStaffHistory(){
-  $("totalLine").textContent = "Всего прокруток: " + state.history.length;
+  var g = staffTab, idx = [], i;
+  for(i=0;i<state.history.length;i++) if(state.history[i].game === g) idx.push(i);
+  $("histTitle").textContent = g === "wheel" ? "История колеса" : "История ячеек";
+  $("totalLine").textContent = (g === "wheel" ? "Всего прокруток: " : "Всего открытых ячеек: ") + idx.length;
   var ul = $("histList");
   ul.innerHTML = "";
-  if(state.history.length === 0){
+  if(idx.length === 0){
     var e = document.createElement("li");
     e.className = "empty";
-    e.textContent = "Пока нет вращений.";
+    e.textContent = "Пока нет записей.";
     ul.appendChild(e);
     return;
   }
-  for(var i=0;i<state.history.length;i++){
-    (function(i){
+  for(i=0;i<idx.length;i++){
+    (function(i, h){
       var li = document.createElement("li");
       var n = document.createElement("span"); n.className = "n"; n.textContent = (i+1) + ".";
-      var t = document.createElement("span"); t.className = "t"; t.textContent = state.history[i].prize;
+      var t = document.createElement("span"); t.className = "t"; t.textContent = state.history[h].prize;
       var d = document.createElement("button");
       d.type = "button"; d.className = "del"; d.textContent = "×";
       d.setAttribute("aria-label", "Удалить запись " + (i+1));
       d.addEventListener("click", function(){
-        state.history.splice(i,1);   // нумерация = индекс+1, дыр не бывает
+        state.history.splice(h,1);
         save();
         renderStaffHistory();
       });
       li.appendChild(n); li.appendChild(t); li.appendChild(d);
       ul.appendChild(li);
-    })(i);
+    })(i, idx[i]);
   }
 }
 
@@ -691,6 +918,7 @@ function renderAll(){
   renderWeights();
   renderGuar();
   renderPrizeInputs();
+  renderCellInputs();
   renderStaffHistory();
 }
 
@@ -699,17 +927,28 @@ function showScreen(id){
   $("screen-main").classList.toggle("active", id === "main");
   $("screen-staff").classList.toggle("active", id === "staff");
   window.scrollTo(0,0);
-  if(id === "main") buildWheel();   // размер мог измениться, пока колесо было скрыто
+  if(id === "main" && state.game === "wheel") buildWheel();   // размер мог измениться, пока колесо было скрыто
 }
 
 /* ---------- events ---------- */
 $("spinBtn").addEventListener("click", spin);
 $("result").addEventListener("click", hideResult);
+$("slotResult").addEventListener("click", resetCells);
+
+$("gameTabs").addEventListener("click", function(e){
+  var g = e.target.getAttribute && e.target.getAttribute("data-g");
+  if(g && !e.target.disabled) setGame(g);
+});
+$("staffTabs").addEventListener("click", function(e){
+  var t = e.target.getAttribute && e.target.getAttribute("data-s");
+  if(t) setStaffTab(t);
+});
 
 $("staffBtn").addEventListener("click", function(){
   if(spinning) return;
   if(confirm("Открыть настройки сотрудника?")){
     renderAll();
+    setStaffTab(state.game);
     showScreen("staff");
   }
 });
@@ -725,16 +964,32 @@ $("backBtn").addEventListener("click", function(){ showScreen("main"); });
 })();
 
 $("resetBtn").addEventListener("click", function(){
-  if(!confirm("Вы уверены, что хотите полностью сбросить приложение? Все результаты, история и настройки будут удалены.")) return;
-  if(!confirm("Подтвердите сброс ещё раз. Действие необратимо.")) return;
-  state = defaults();
+  var g = staffTab, name = g === "wheel" ? "колеса" : "ячеек";
+  if(!confirm("Сбросить настройки " + name + "? История останется.")) return;
+  var d = defaults();
+  if(g === "wheel"){
+    state.prizes = d.prizes; state.weights = d.weights;
+    state.mode = d.mode; state.guaranteed = d.guaranteed;
+    hideResult();
+  } else {
+    state.cells = d.cells;
+    resetCells();
+  }
   save();
   renderAll();
-  hideResult();
+});
+$("clearHistBtn").addEventListener("click", function(){
+  var g = staffTab, name = g === "wheel" ? "колеса" : "ячеек";
+  if(!confirm("Удалить всю историю " + name + "?")) return;
+  state.history = state.history.filter(function(h){ return h.game !== g; });
+  save();
+  renderStaffHistory();
 });
 
 /* ---------- init ---------- */
 renderAll();                                  // список призов не должен зависеть от канваса
+renderCells();
+setGame(state.game);
 try { buildWheel(); } catch(e){}
 requestAnimationFrame(buildWheel);            // второй заход, когда размеры уже посчитаны
 })();
