@@ -306,7 +306,10 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
   .main-cols>.col-a{flex:0 0 auto;width:min(46vw,340px)}
   .main-cols>.col-b{flex:1;min-width:0}
   .stage,.board{--wsize:min(44vw,72vh,340px);margin-top:8px}
-  .card{margin-top:0}
+  .main-cols{justify-content:center}            /* ячейки без списка призов — по центру */
+  .tabs{margin-top:8px}
+  .board{--wsize:min(44vw,calc(100vh - 150px),340px)}
+  .main-cols .card{margin-top:0}
 }
 </style>
 </head>
@@ -720,7 +723,11 @@ function openCell(k, btn){
   state.history.push({prize: snapshot, game: "slots"});
   save();
 
-  btn.querySelector(".reveal").textContent = snapshot;
+  var rv = btn.querySelector(".reveal");
+  rv.textContent = snapshot;
+  // длинный приз на узком экране не влезает в ячейку — уменьшаем шрифт, пока не влезет
+  for(var fs = parseFloat(getComputedStyle(rv).fontSize); fs > 8 && rv.scrollHeight > rv.clientHeight; fs--)
+    rv.style.fontSize = (fs - 1) + "px";
   btn.classList.add("open");
   $("cells").classList.add("done");
 
