@@ -139,10 +139,15 @@ button,input,select{font:inherit;color:inherit}
 }
 .cell{
   position:relative;border:0;padding:0;background:none;cursor:pointer;
-  perspective:700px;animation:deal .45s cubic-bezier(.2,.8,.2,1) backwards;
-  transition:opacity .4s, transform .4s;
+  perspective:700px;animation:deal .5s cubic-bezier(.2,.8,.2,1) backwards;
+  transition:opacity .4s, transform .4s cubic-bezier(.5,0,.3,1);
+  --dx:0%;--dy:0%;--rot:0deg;   /* смещение к центру поля — для анимации перемешивания */
 }
-@keyframes deal{from{opacity:0;transform:translateY(12px) scale(.85)}}
+/* перемешивание: карты собираются в стопку в центре и раздаются заново */
+@keyframes deal{from{opacity:.5;transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.8)}}
+.cells.gather .cell{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(.8)}
+.cell.hl .in{transform:scale(1.07)}
+.cell.hl .front{box-shadow:0 0 0 3px var(--gold) inset, 0 0 22px rgba(201,164,108,.65)}
 .cell .in{
   position:relative;display:block;width:100%;height:100%;
   transform-style:preserve-3d;-webkit-transform-style:preserve-3d;
@@ -175,7 +180,7 @@ button,input,select{font:inherit;color:inherit}
 }
 .result.sq{border-radius:30px}
 .pick-hint{
-  margin:22px 0 0;padding:18px 0;text-align:center;
+  margin:18px 0 0;text-align:center;
   font-size:13px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-soft);
 }
 .pointer{
@@ -358,7 +363,8 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
               </div>
             </div>
           </div>
-          <p class="pick-hint">Выберите одну ячейку</p>
+          <p class="pick-hint">Выберите ячейку</p>
+          <button class="spin" id="pickBtn" style="margin-top:12px">Выбрать наугад</button>
         </div>
 
         <div class="game" id="game-wheel">
@@ -406,11 +412,28 @@ input[type=radio]{width:20px;height:20px;accent-color:var(--gold-dk)}
     </div>
 
     <div class="pane" id="staff-slots">
-      <div class="card">
-        <h2>Приз в каждой ячейке</h2>
-        <p class="muted">Ячейка всегда даёт приз, указанный здесь.</p>
-        <div id="cellRows"></div>
-      </div>
+    <div class="card">
+      <h2>Режим определения результата</h2>
+      <div class="row"><label><input type="radio" name="slotMode" value="random"> Рандом</label></div>
+      <div class="row"><label><input type="radio" name="slotMode" value="guaranteed"> Гарантированный результат</label></div>
+    </div>
+
+    <div class="card">
+      <h2>Вероятности (веса)</h2>
+      <p class="muted">Действуют и при выборе ячейки пальцем, и при «Выбрать наугад». Значения — относительные веса, проценты пересчитываются сами.</p>
+      <div id="slotWeightRows"></div>
+    </div>
+
+    <div class="card">
+      <h2>Гарантированный результат</h2>
+      <p class="muted">Номер приза из списка ниже. Выпадет в одной следующей игре, какую бы ячейку ни выбрали, затем режим вернётся в «Рандом».</p>
+      <div class="grid" id="slotGuarGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Названия призов</h2>
+      <div id="slotPrizeRows"></div>
+    </div>
     </div>
 
     <div class="pane" id="staff-wheel">
@@ -475,9 +498,8 @@ var TURNS = 6;
 var DEFAULT_PRIZES = ["Скидка 10%","Скидка 20%","Скидка 30%","Скидка 40%","Скидка 50%",
                       "Скидка 60%","Скидка 70%","Скидка 80%","Бесплатная Диагностика","Секретный бокс"];
 var DEFAULT_WEIGHTS = [15,18,10,10,0,0,0,0,80,34];
-var DEFAULT_CELLS = ["Скидка 10%","Скидка 20%","Бесплатная Диагностика",
-                     "Скидка 30%","Секретный бокс","Скидка 10%",
-                     "Бесплатная Диагностика","Скидка 20%","Скидка 40%"];
+var DEFAULT_SLOT_PRIZES = ["Toun28 мыло","Biodance маска","100$","Скидка 5%","Скидка 10%",
+                          "Бесплатная диагностика","Секретный бокс","Toun28 масло для тела","Toun28 эссенция"];
 
 function defaults(){
   return {
@@ -486,7 +508,12 @@ function defaults(){
     mode: "random",
     guaranteed: 1,
     game: "wheel",
-    cells: DEFAULT_CELLS.slice(),   // приз каждой ячейки 3×3
+    slots: {         // те же поля, что у колеса, только на 9 призов
+      prizes: DEFAULT_SLOT_PRIZES.slice(),
+      weights: DEFAULT_SLOT_PRIZES.map(function(){ return 1; }),
+      mode: "random",
+      guaranteed: 1
+    },
     history: []      // [{prize:"...", game:"wheel"|"slots"}] — снимок текста на момент выигрыша
   };
 }
@@ -507,23 +534,28 @@ function load(){
   try { p = JSON.parse(raw); } catch(e){ return s; }
   if(!p || typeof p !== "object") return s;
 
-  if(Array.isArray(p.prizes)) for(var i=0;i<N;i++)
-    if(typeof p.prizes[i] === "string") s.prizes[i] = p.prizes[i];
-  if(Array.isArray(p.weights)) for(var j=0;j<N;j++){
-    var w = Number(p.weights[j]);
-    if(isFinite(w) && w >= 0) s.weights[j] = w;
-  }
-  if(p.mode === "guaranteed" || p.mode === "random") s.mode = p.mode;
-  var g = Math.round(Number(p.guaranteed));
-  if(isFinite(g) && g >= 1 && g <= N) s.guaranteed = g;
+  loadGame(s, p);
+  if(p.slots && typeof p.slots === "object") loadGame(s.slots, p.slots);
   if(p.game === "wheel" || p.game === "slots") s.game = p.game;
-  if(Array.isArray(p.cells)) for(var k=0;k<CELLS;k++)
-    if(typeof p.cells[k] === "string") s.cells[k] = p.cells[k];
   if(Array.isArray(p.history))
     s.history = p.history
       .filter(function(h){ return h && typeof h.prize === "string"; })
       .map(function(h){ return {prize: h.prize, game: h.game === "slots" ? "slots" : "wheel"}; });
   return s;
+}
+
+// переносит из сохранённого p в s только валидные поля; n берётся из длины списка призов
+function loadGame(s, p){
+  var n = s.prizes.length, i;
+  if(Array.isArray(p.prizes)) for(i=0;i<n;i++)
+    if(typeof p.prizes[i] === "string") s.prizes[i] = p.prizes[i];
+  if(Array.isArray(p.weights)) for(i=0;i<n;i++){
+    var w = Number(p.weights[i]);
+    if(isFinite(w) && w >= 0) s.weights[i] = w;
+  }
+  if(p.mode === "guaranteed" || p.mode === "random") s.mode = p.mode;
+  var g = Math.round(Number(p.guaranteed));
+  if(isFinite(g) && g >= 1 && g <= n) s.guaranteed = g;
 }
 
 function save(){
@@ -536,23 +568,35 @@ var state = load();
 
 /* ---------- helpers ---------- */
 function $(id){ return document.getElementById(id); }
-function prizeText(i){
-  var t = (state.prizes[i] || "").trim();
+// cfg("wheel") — сам state (поля колеса исторически лежат в корне), cfg("slots") — state.slots
+function cfg(g){ return g === "wheel" ? state : state.slots; }
+var IDS = {
+  wheel: {mode:"mode",     weights:"weightRows",     guar:"guarGrid",     prizes:"prizeRows"},
+  slots: {mode:"slotMode", weights:"slotWeightRows", guar:"slotGuarGrid", prizes:"slotPrizeRows"}
+};
+function prizeText(o, i){
+  var t = (o.prizes[i] || "").trim();
   return t || ("Приз " + (i+1));
 }
-function pickWeighted(){
-  var total = 0, i;
-  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
-  if(!(total > 0)) return Math.floor(Math.random()*N);
+// skip — индекс приза, который не должен выпасть (или -1); если без него шансов нет, он остаётся
+function pickWeighted(o, skip){
+  var n = o.prizes.length, total = 0, i;
+  function w(i){ return i === skip ? 0 : Math.max(0, o.weights[i]); }
+  for(i=0;i<n;i++) total += w(i);
+  if(!(total > 0)) return skip >= 0 ? pickWeighted(o, -1) : Math.floor(Math.random()*n);
   var r = Math.random()*total;
-  for(i=0;i<N;i++){
-    r -= Math.max(0, state.weights[i]);
+  for(i=0;i<n;i++){
+    r -= w(i);
     if(r < 0) return i;
   }
-  return N-1;
+  return n-1;
 }
-function cellText(k){
-  return (state.cells[k] || "").trim() || ("Приз " + (k+1));
+// результат игры: гарантированный (одноразово, потом обратно в рандом) или по весам
+function drawPrize(g, skip){
+  var o = cfg(g);
+  var idx = (o.mode === "guaranteed") ? (o.guaranteed - 1) : pickWeighted(o, skip);
+  if(o.mode === "guaranteed"){ o.mode = "random"; renderMode(g); save(); }
+  return idx;
 }
 function lockUi(on){
   $("staffBtn").disabled = on;
@@ -643,11 +687,8 @@ function spin(){
   hideResult();
 
   // 1. результат определяется ДО анимации — оба режима идут одним путём
-  var idx = (state.mode === "guaranteed") ? (state.guaranteed - 1) : pickWeighted();
-  var snapshot = prizeText(idx);
-
-  // гарантированный режим одноразовый: сразу возвращаемся к рандому
-  if(state.mode === "guaranteed"){ state.mode = "random"; renderMode(); save(); }
+  var idx = drawPrize("wheel");
+  var snapshot = prizeText(state, idx);
 
   // 2. одна анимация, одинаковая физика для обоих режимов
   var center = idx*36 + 18 + (Math.random()*24 - 12); // лёгкий разброс внутри сектора
@@ -693,36 +734,51 @@ function showResult(text){
 function hideResult(){ $("result").classList.remove("show"); }
 
 /* ---------- 9 ячеек ---------- */
+// Приз не привязан к ячейке заранее: он разыгрывается по весам в момент выбора.
+// Поэтому одна и та же ячейка в разных играх даёт разные призы, а перемешивание
+// после игры показывает это визуально.
 var revealing = false;
+var last = {cell: -1, prize: -1};   // повторный выбор той же ячейки не даёт тот же приз подряд
 
 function renderCells(){
   var box = $("cells");
   box.innerHTML = "";
-  box.classList.remove("done");
+  box.className = "cells";
   for(var k=0;k<CELLS;k++){
     (function(k){
       var b = document.createElement("button");
       b.type = "button";
       b.className = "cell";
       b.style.animationDelay = (k*45) + "ms";
+      b.style.setProperty("--dx", (1 - k%3)*108 + "%");
+      b.style.setProperty("--dy", (1 - Math.floor(k/3))*108 + "%");
+      b.style.setProperty("--rot", Math.round(Math.random()*30 - 15) + "deg");
       b.setAttribute("aria-label", "Ячейка " + (k+1));
       b.innerHTML = '<span class="in"><span class="face front"><span class="q">?</span></span>'
                   + '<span class="face reveal"></span></span>';
-      b.addEventListener("click", function(){ openCell(k, b); });
+      b.addEventListener("click", function(){ openCell(k); });
       box.appendChild(b);
     })(k);
   }
 }
 
-function openCell(k, btn){
+function setBusy(on){
+  revealing = on;
+  $("pickBtn").disabled = on;
+}
+
+function openCell(k){
   if(revealing) return;
-  revealing = true;
+  setBusy(true);
   lockUi(true);
 
-  var snapshot = cellText(k);
+  var idx = drawPrize("slots", k === last.cell ? last.prize : -1);
+  last = {cell: k, prize: idx};
+  var snapshot = prizeText(state.slots, idx);
   state.history.push({prize: snapshot, game: "slots"});
   save();
 
+  var btn = $("cells").children[k];
   var rv = btn.querySelector(".reveal");
   rv.textContent = snapshot;
   // длинный приз на узком экране не влезает в ячейку — уменьшаем шрифт, пока не влезет
@@ -738,10 +794,43 @@ function openCell(k, btn){
   }, 1400);
 }
 
+// «Выбрать наугад»: подсветка прыгает по ячейкам, замедляясь, и останавливается на одной
+function pickRandom(){
+  if(revealing) return;
+  setBusy(true);
+  lockUi(true);
+  var cells = $("cells").children, cur = -1, step = 0, STEPS = 14;
+  (function hop(){
+    if(cur >= 0) cells[cur].classList.remove("hl");
+    if(step === STEPS){ setBusy(false); openCell(cur); return; }
+    var nxt;
+    do { nxt = Math.floor(Math.random()*CELLS); } while(nxt === cur);
+    cur = nxt;
+    cells[cur].classList.add("hl");
+    step++;
+    setTimeout(hop, 50 + step*step*1.6);
+  })();
+}
+
+// после игры: карты переворачиваются, собираются в центр и раздаются заново
+function shuffleCells(){
+  $("slotResult").classList.remove("show");
+  var box = $("cells");
+  for(var k=0;k<box.children.length;k++) box.children[k].classList.remove("open");
+  box.classList.remove("done");
+  void box.offsetWidth;
+  box.classList.add("gather");
+  setTimeout(function(){
+    renderCells();
+    setBusy(false);
+  }, 450);
+}
+
+// мгновенный сброс без анимации (сброс настроек)
 function resetCells(){
   $("slotResult").classList.remove("show");
   renderCells();
-  revealing = false;
+  setBusy(false);
 }
 
 /* ---------- render: main ---------- */
@@ -762,111 +851,89 @@ function renderPrizeList(){
   for(var i=0;i<N;i++){
     var li = document.createElement("li");
     var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
-    var t = document.createElement("span"); t.className = "t"; t.textContent = prizeText(i);
+    var t = document.createElement("span"); t.className = "t"; t.textContent = prizeText(state, i);
     li.appendChild(n); li.appendChild(t);
     ul.appendChild(li);
   }
 }
 
-/* ---------- render: staff ---------- */
-function renderMode(){
-  var rs = document.getElementsByName("mode");
-  for(var i=0;i<rs.length;i++) rs[i].checked = (rs[i].value === state.mode);
+/* ---------- render: staff (общие для колеса и ячеек, g = "wheel" | "slots") ---------- */
+function renderMode(g){
+  var rs = document.getElementsByName(IDS[g].mode);
+  for(var i=0;i<rs.length;i++) rs[i].checked = (rs[i].value === cfg(g).mode);
 }
 
-function renderWeights(){
-  var box = $("weightRows");
+function pctText(o, i){
+  var total = 0;
+  for(var j=0;j<o.weights.length;j++) total += Math.max(0, o.weights[j]);
+  return total > 0 ? (Math.max(0,o.weights[i])/total*100).toFixed(1)+"%" : "—";
+}
+function updatePercents(g){
+  var cells = $(IDS[g].weights).getElementsByClassName("pct");
+  for(var i=0;i<cells.length;i++) cells[i].textContent = pctText(cfg(g), i);
+}
+
+function renderWeights(g){
+  var box = $(IDS[g].weights), o = cfg(g);
   box.innerHTML = "";
-  var total = 0, i;
-  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
-  for(i=0;i<N;i++){
+  for(var i=0;i<o.weights.length;i++){
     (function(i){
       var row = document.createElement("div"); row.className = "frow";
       var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
       var inp = document.createElement("input");
       inp.type = "number"; inp.min = "0"; inp.step = "1"; inp.inputMode = "decimal";
-      inp.value = state.weights[i];
-      var pct = document.createElement("span"); pct.className = "pct";
-      pct.textContent = total > 0 ? (Math.max(0,state.weights[i])/total*100).toFixed(1)+"%" : "—";
+      inp.value = o.weights[i];
+      var pct = document.createElement("span"); pct.className = "pct"; pct.textContent = pctText(o, i);
       inp.addEventListener("input", function(){
         var v = Number(inp.value);
-        state.weights[i] = (isFinite(v) && v >= 0) ? v : 0;
+        o.weights[i] = (isFinite(v) && v >= 0) ? v : 0;
         save();
-        updatePercents();
+        updatePercents(g);
       });
-      inp.addEventListener("blur", function(){ inp.value = state.weights[i]; });
+      inp.addEventListener("blur", function(){ inp.value = o.weights[i]; });
       row.appendChild(n); row.appendChild(inp); row.appendChild(pct);
       box.appendChild(row);
     })(i);
   }
 }
-function updatePercents(){
-  var cells = $("weightRows").getElementsByClassName("pct");
-  var total = 0, i;
-  for(i=0;i<N;i++) total += Math.max(0, state.weights[i]);
-  for(i=0;i<cells.length;i++)
-    cells[i].textContent = total > 0 ? (Math.max(0,state.weights[i])/total*100).toFixed(1)+"%" : "—";
-}
 
-function renderGuar(){
-  var g = $("guarGrid");
-  g.innerHTML = "";
-  for(var i=1;i<=N;i++){
+function renderGuar(g){
+  var box = $(IDS[g].guar), o = cfg(g);
+  box.innerHTML = "";
+  for(var i=1;i<=o.prizes.length;i++){
     (function(i){
       var b = document.createElement("button");
       b.type = "button";
-      b.className = "num" + (state.guaranteed === i ? " on" : "");
+      b.className = "num" + (o.guaranteed === i ? " on" : "");
       b.textContent = i;
       b.addEventListener("click", function(){
-        state.guaranteed = i;
+        o.guaranteed = i;
         save();
-        renderGuar();
+        renderGuar(g);
       });
-      g.appendChild(b);
+      box.appendChild(b);
     })(i);
   }
 }
 
-function renderPrizeInputs(){
-  var box = $("prizeRows");
+function renderPrizeInputs(g){
+  var box = $(IDS[g].prizes), o = cfg(g);
   box.innerHTML = "";
-  for(var i=0;i<N;i++){
+  for(var i=0;i<o.prizes.length;i++){
     (function(i){
       var row = document.createElement("div"); row.className = "frow";
       var n = document.createElement("span"); n.className = "n"; n.textContent = i+1;
       var inp = document.createElement("input");
-      inp.type = "text"; inp.maxLength = 60; inp.value = state.prizes[i];
+      inp.type = "text"; inp.maxLength = 60; inp.value = o.prizes[i];
       inp.placeholder = "Приз " + (i+1);
       inp.addEventListener("input", function(){
-        state.prizes[i] = inp.value;
+        o.prizes[i] = inp.value;
         save();
-        renderPrizeList();
+        if(g === "wheel") renderPrizeList();
       });
       row.appendChild(n); row.appendChild(inp);
       box.appendChild(row);
     })(i);
-  }
-}
-
-/* ---------- render: staff (ячейки) ---------- */
-function renderCellInputs(){
-  var box = $("cellRows");
-  box.innerHTML = "";
-  for(var k=0;k<CELLS;k++){
-    (function(k){
-      var row = document.createElement("div"); row.className = "frow";
-      var n = document.createElement("span"); n.className = "n"; n.textContent = k+1;
-      var inp = document.createElement("input");
-      inp.type = "text"; inp.maxLength = 60; inp.value = state.cells[k];
-      inp.placeholder = "Приз " + (k+1);
-      inp.setAttribute("aria-label", "Приз ячейки " + (k+1));
-      inp.addEventListener("input", function(){
-        state.cells[k] = inp.value;
-        save();
-      });
-      row.appendChild(n); row.appendChild(inp);
-      box.appendChild(row);
-    })(k);
   }
 }
 
@@ -875,7 +942,7 @@ function setStaffTab(t){
   staffTab = t;
   $("resetNote").textContent = t === "wheel"
     ? "Настройки: стандартные призы, вероятности и режим колеса. История: история прокрутки колеса."
-    : "Настройки: стандартные призы ячеек. История: история выбора ячеек.";
+    : "Настройки: стандартные призы, вероятности и режим ячеек. История: история выбора ячеек.";
   $("resetBtn").textContent = "Сбросить настройки";
   $("clearHistBtn").textContent = "Сбросить историю";
   renderStaffHistory();
@@ -921,11 +988,12 @@ function renderStaffHistory(){
 
 function renderAll(){
   renderPrizeList();
-  renderMode();
-  renderWeights();
-  renderGuar();
-  renderPrizeInputs();
-  renderCellInputs();
+  ["wheel","slots"].forEach(function(g){
+    renderMode(g);
+    renderWeights(g);
+    renderGuar(g);
+    renderPrizeInputs(g);
+  });
   renderStaffHistory();
 }
 
@@ -940,7 +1008,8 @@ function showScreen(id){
 /* ---------- events ---------- */
 $("spinBtn").addEventListener("click", spin);
 $("result").addEventListener("click", hideResult);
-$("slotResult").addEventListener("click", resetCells);
+$("slotResult").addEventListener("click", shuffleCells);
+$("pickBtn").addEventListener("click", pickRandom);
 
 $("gameTabs").addEventListener("click", function(e){
   var g = e.target.getAttribute && e.target.getAttribute("data-g");
@@ -961,14 +1030,14 @@ $("staffBtn").addEventListener("click", function(){
 });
 $("backBtn").addEventListener("click", function(){ showScreen("main"); });
 
-(function(){
-  var rs = document.getElementsByName("mode");
+["wheel","slots"].forEach(function(g){
+  var rs = document.getElementsByName(IDS[g].mode);
   for(var i=0;i<rs.length;i++){
     rs[i].addEventListener("change", function(){
-      if(this.checked){ state.mode = this.value; save(); }
+      if(this.checked){ cfg(g).mode = this.value; save(); }
     });
   }
-})();
+});
 
 $("resetBtn").addEventListener("click", function(){
   var g = staffTab, name = g === "wheel" ? "колеса" : "ячеек";
@@ -979,7 +1048,7 @@ $("resetBtn").addEventListener("click", function(){
     state.mode = d.mode; state.guaranteed = d.guaranteed;
     hideResult();
   } else {
-    state.cells = d.cells;
+    state.slots = d.slots;
     resetCells();
   }
   save();
